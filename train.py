@@ -14,7 +14,7 @@ from PIL import Image
 import random
 import matplotlib.pyplot as plt
 from model import VariationalAutoEncoder
-from train_helpers import load_data, train, show_images, generate_images
+from train_helpers import load_data, train, show_images, generate_images, reconstruct_img
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -29,6 +29,7 @@ LR = 0.001
 model = VariationalAutoEncoder(H_DIM, Z_DIM).to(DEVICE)
 
 train = False
+generate = False
 
 if train:
     dataloader = load_data()
@@ -39,6 +40,12 @@ else:
 
 model.eval()
 
-generated_images = generate_images(model, z_dims=Z_DIM)
 
-show_images(generated_images.cpu().numpy())
+if generate:
+    generated_images = generate_images(model, z_dims=Z_DIM)
+    show_images(generated_images.cpu().numpy())
+else:
+    image_path = 'train\cat\cat.2.jpg'
+    reconstruct_img(model, image_path)
+
+
