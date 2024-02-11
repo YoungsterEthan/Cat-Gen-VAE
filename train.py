@@ -28,16 +28,16 @@ LR = 0.001
 
 model = VariationalAutoEncoder(H_DIM, Z_DIM).to(DEVICE)
 
-train = False
-generate = False
+TRAIN = False
+generate = True
 
-if train:
+if TRAIN:
     dataloader = load_data()
-    train(dataloader, model, NUM_EPOCHS, DEVICE, LR, path='')
+    train(dataloader, model, NUM_EPOCHS, DEVICE, LR, path='cat_generator4.pth')
 else:
-    model.load_state_dict(torch.load('cat_generator3.pth'))
-    model.cpu()
-
+    model.load_state_dict(torch.load('cat_generator4.pth'))
+    
+model.cpu()
 model.eval()
 
 
@@ -45,7 +45,7 @@ if generate:
     generated_images = generate_images(model, z_dims=Z_DIM)
     show_images(generated_images.cpu().numpy())
 else:
-    image_path = 'train\cat\cat.2.jpg'
+    image_path = 'train\cat\cat.4.jpg'
     reconstruct_img(model, image_path)
 
 

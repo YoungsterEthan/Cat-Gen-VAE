@@ -38,14 +38,14 @@ def visualize_reconstruction(model, data_loader, device, n_images=5):
     plt.show()
 
 def load_data(root="dataset/", batch_size=128):
-    train_loader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(dataset=root, batch_size=batch_size, shuffle=True)
 
     transformations = transforms.Compose([
         transforms.Resize((256, 256)),
         transforms.ToTensor()
     ])
     dataset = ImageFolder(root="C:/Users/Ethan/Desktop/VAE/train/", transform=transformations)
-    dataloader = DataLoader(dataset=dataset, batch_size=32, shuffle=True)
+    return DataLoader(dataset=dataset, batch_size=32, shuffle=True)
 
 def train(dataloader, model, num_epochs, device, lr, path):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -67,10 +67,9 @@ def train(dataloader, model, num_epochs, device, lr, path):
             loss.backward()
             optimizer.step()
             loop.set_postfix(loss=loss.item())
-        if epoch % 10 == 0:
-            visualize_reconstruction(model, dataloader, 'cuda', 5)
 
-    torch.save(model.state_dict(), f'{path}/cat_generator3.pth')
+
+    torch.save(model.state_dict(), f'{path}')
 
 def generate_images(model, num_samples=20, z_dims=30):
     with torch.no_grad():
@@ -85,4 +84,35 @@ def show_images(images, num_images=5):
         img = np.moveaxis(images[i], 0, -1)
         ax.imshow(img)
         ax.axis('off')
+    plt.show()
+
+def reconstruct_img(model, image_path):
+    image = Image.open(image_path)
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),  # Resize the image to 256x256
+        transforms.ToTensor(),  
+    ])
+
+    image = transform(image).unsqueeze(0) 
+
+
+    with torch.no_grad():  
+        mu, sigma = model.encode(image)
+        print("Mu", mu)
+        print("Sigma", sigma)
+        reconstructed_img, _, _ = model(image)
+
+    # Convert the tensor to a displayable format
+    reconstructed_img = reconstructed_img.squeeze(0)  
+    reconstructed_img = reconstructed_img.detach().cpu().numpy()  
+    reconstructed_img = np.moveaxis(reconstructed_img, 0, -1)  
+
+    # Display the original and regenerated images
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image.squeeze(0).permute(1, 2, 0))
+    plt.title('Original Image')
+    plt.subplot(1, 2, 2)
+    plt.imshow(reconstructed_img, cmap='gray')
+    plt.title('Regenerated Image')
     plt.show()
