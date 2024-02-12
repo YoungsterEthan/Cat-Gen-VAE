@@ -38,52 +38,109 @@ def visualize_reconstruction(model, data_loader, device, n_images=5):
     plt.show()
 
 def load_data(root="dataset/", batch_size=128):
-    train_loader = DataLoader(dataset=root, batch_size=batch_size, shuffle=True)
-
     transformations = transforms.Compose([
         transforms.Resize((256, 256)),
         transforms.ToTensor()
     ])
     dataset = ImageFolder(root="C:/Users/Ethan/Desktop/VAE/train/", transform=transformations)
-    return DataLoader(dataset=dataset, batch_size=32, shuffle=True)
+    # Calculate split sizes
+    total_size = len(dataset)
+    train_size = int(0.7 * total_size)
+    val_size = int(0.15 * total_size)
+    test_size = total_size - train_size - val_size
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-def train(dataloader, model, num_epochs, device, lr, path):
+    return train_loader, val_loader, test_loader
+
+def train(train_data, val_data, model, num_epochs, device, lr, path):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.BCELoss(reduction="sum")
 
     for epoch in range(num_epochs):
-        loop = tqdm(enumerate(dataloader))
-        for i, (x,_) in loop:
+        model.train()
+        train_loss = 0.0
+        loop = tqdm(enumerate(train_data), total=len(train_data), leave=False)
+        for i, (x, _) in loop:
             x = x.to(device)
             x_reconstructed, mu, sigma = model(x)
 
-            #compute loss
+            # Compute loss
+            # print("x_reconstructed", x_reconstructed.shape)
+            # print("x", x.shape)
             reconstruction_loss = loss_fn(x_reconstructed, x)
-            kl_div = -0.5 * torch.sum(1+ torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2))
+            kl_div = -0.5 * torch.sum(1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2))
 
-            #backprop
             loss = reconstruction_loss + kl_div
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            train_loss += loss.item()
+            loop.set_description(f"Epoch [{epoch+1}/{num_epochs}]")
             loop.set_postfix(loss=loss.item())
 
+        # Calculate average training loss over all batches
+        train_loss /= len(train_data.dataset)
 
-    torch.save(model.state_dict(), f'{path}')
+        # Validation phase
+        model.eval()  
+        val_loss = 0.0
+        with torch.no_grad():  
+            for x, _ in val_data:
+                x = x.to(device)
+                x_reconstructed, mu, sigma = model(x)
+
+                # Compute loss
+                reconstruction_loss = loss_fn(x_reconstructed, x)
+                kl_div = -0.5 * torch.sum(1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2))
+                loss = reconstruction_loss + kl_div
+
+                val_loss += loss.item()
+
+        val_loss /= len(val_data.dataset)
+
+        print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}')
+        # if epoch % 10 == 0:
+        #     visualize_reconstruction(model, val_data, device, n_images=5)
+
+    # Save the model after training
+    torch.save(model.state_dict(), path)
 
 def generate_images(model, num_samples=20, z_dims=30):
     with torch.no_grad():
         z = torch.randn(num_samples, z_dims)
-        generate_images = model.decode(z)
+        print("z")
+        print(z)
+        print("z-dim", z.shape)
+        generate_image = model.decode(z)
+        print("img")
+        print(generate_image)
+        print(generate_image.shape)
 
-        return generate_images
+        return generate_image
+
 
 def show_images(images, num_images=5):
-    fig, axes = plt.subplots(nrows=1, ncols=num_images, figsize=(10,2))
-    for i, ax in enumerate(axes):
+    # Determine the number of rows needed (each row will have up to 5 images)
+    num_rows = num_images // 5 + (1 if num_images % 5 else 0)
+
+    fig, axes = plt.subplots(nrows=num_rows, ncols=min(num_images, 5), figsize=(10, 2*num_rows), squeeze=False)
+
+    axes_flat = axes.flatten()
+
+    for i in range(num_images):
+        row, col = divmod(i, 5)
         img = np.moveaxis(images[i], 0, -1)
+        ax = axes_flat[i]
         ax.imshow(img)
         ax.axis('off')
+    for j in range(num_images, len(axes_flat)):
+        axes_flat[j].axis('off')
+    
+    plt.tight_layout()
     plt.show()
 
 def reconstruct_img(model, image_path):
@@ -100,7 +157,15 @@ def reconstruct_img(model, image_path):
         mu, sigma = model.encode(image)
         print("Mu", mu)
         print("Sigma", sigma)
+        z = model.reparameterize(mu, sigma)
+        print("z")
+        print(z)
+        print("z-dim")
+        print(z.shape)
         reconstructed_img, _, _ = model(image)
+        print("reconstructed")
+        print(reconstructed_img)
+        print(reconstructed_img.shape)
 
     # Convert the tensor to a displayable format
     reconstructed_img = reconstructed_img.squeeze(0)  

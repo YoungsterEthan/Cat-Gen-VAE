@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image
 import random
 import matplotlib.pyplot as plt
-from model import VariationalAutoEncoder
+from model import VariationalAutoEncoder, VariationalAutoEncoder_BN, VariationalAutoEncoder_BN_Pool
 from train_helpers import load_data, train, show_images, generate_images, reconstruct_img
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,26 +26,26 @@ NUM_EPOCHS = 150
 BATCH_SIZE = 128
 LR = 0.001
 
-model = VariationalAutoEncoder(H_DIM, Z_DIM).to(DEVICE)
+model = VariationalAutoEncoder_BN_Pool(H_DIM, Z_DIM).to(DEVICE)
 
 TRAIN = False
 generate = True
-
+train_data, val_data, test_data = load_data()
 if TRAIN:
-    dataloader = load_data()
-    train(dataloader, model, NUM_EPOCHS, DEVICE, LR, path='cat_generator4.pth')
+    
+    train(train_data, val_data, model, NUM_EPOCHS, DEVICE, LR, path='cat_generator5.pth')
 else:
-    model.load_state_dict(torch.load('cat_generator4.pth'))
+    model.load_state_dict(torch.load('cat_generator5.pth'))
     
 model.cpu()
 model.eval()
 
 
 if generate:
-    generated_images = generate_images(model, z_dims=Z_DIM)
-    show_images(generated_images.cpu().numpy())
+    generated_images = generate_images(model, z_dims=Z_DIM, num_samples=1)
+    show_images(generated_images.numpy(), num_images=1)
 else:
-    image_path = 'train\cat\cat.4.jpg'
+    image_path = 'train\cat\cat.29.jpg'
     reconstruct_img(model, image_path)
 
 
