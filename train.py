@@ -14,15 +14,15 @@ from PIL import Image
 import random
 import matplotlib.pyplot as plt
 from model import VariationalAutoEncoder, VariationalAutoEncoder_BN, VariationalAutoEncoder_BN_Pool
-from train_helpers import load_data, train, show_images, generate_images, reconstruct_img
+from train_helpers import load_data, show_images, generate_images, reconstruct_img, train_and_visualize_fixed_images
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 INPUT_DIM = 3 * 356 * 256
-H_DIM = 200
+H_DIM = 1024
 N_DIM = 200
-Z_DIM = 100
-NUM_EPOCHS = 150
+Z_DIM = 256
+NUM_EPOCHS = 500
 BATCH_SIZE = 128
 LR = 0.001
 
@@ -32,10 +32,10 @@ TRAIN = False
 generate = True
 train_data, val_data, test_data = load_data()
 if TRAIN:
-    
-    train(train_data, val_data, model, NUM_EPOCHS, DEVICE, LR, path='cat_generator5.pth')
+    fixed_images = next(iter(train_data))[0][:5]  
+    train_and_visualize_fixed_images(model, train_data, NUM_EPOCHS, DEVICE, fixed_images, 'cat_generator6.pth')
 else:
-    model.load_state_dict(torch.load('cat_generator5.pth'))
+    model.load_state_dict(torch.load('cat_generator6.pth'))
     
 model.cpu()
 model.eval()

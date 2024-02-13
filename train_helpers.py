@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image
 import random
 import matplotlib.pyplot as plt
+import os
 from model import VariationalAutoEncoder
 
 
@@ -55,56 +56,63 @@ def load_data(root="dataset/", batch_size=128):
 
     return train_loader, val_loader, test_loader
 
-def train(train_data, val_data, model, num_epochs, device, lr, path):
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    loss_fn = nn.BCELoss(reduction="sum")
+def train_and_visualize_fixed_images(model, train_loader, num_epochs, device, fixed_images, path):
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    loss_fn = torch.nn.BCELoss(reduction="sum")
+    
+    plt.ion()  # Turn on interactive mode
+    fig, axes = plt.subplots(2, len(fixed_images), figsize=(15, 5))  # Adjust subplot size accordingly
+    
+    fixed_images = fixed_images.to(device)
 
+    plots_dir = 'training_plots'
+    os.makedirs(plots_dir, exist_ok=True)
+    
     for epoch in range(num_epochs):
-        model.train()
-        train_loss = 0.0
-        loop = tqdm(enumerate(train_data), total=len(train_data), leave=False)
-        for i, (x, _) in loop:
+        for batch_idx, (x, _) in enumerate(train_loader):
             x = x.to(device)
-            x_reconstructed, mu, sigma = model(x)
-
-            # Compute loss
-            # print("x_reconstructed", x_reconstructed.shape)
-            # print("x", x.shape)
-            reconstruction_loss = loss_fn(x_reconstructed, x)
-            kl_div = -0.5 * torch.sum(1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2))
-
-            loss = reconstruction_loss + kl_div
+            model.train()
             optimizer.zero_grad()
+            
+            # Forward pass
+            x_reconstructed, mu, log_var = model(x)
+            
+            # Compute loss
+            reconstruction_loss = loss_fn(x_reconstructed, x)
+            kl_div = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+            loss = reconstruction_loss + kl_div
+            
+            # Backward pass and optimize
             loss.backward()
             optimizer.step()
-
-            train_loss += loss.item()
-            loop.set_description(f"Epoch [{epoch+1}/{num_epochs}]")
-            loop.set_postfix(loss=loss.item())
-
-        # Calculate average training loss over all batches
-        train_loss /= len(train_data.dataset)
-
-        # Validation phase
-        model.eval()  
-        val_loss = 0.0
-        with torch.no_grad():  
-            for x, _ in val_data:
-                x = x.to(device)
-                x_reconstructed, mu, sigma = model(x)
-
-                # Compute loss
-                reconstruction_loss = loss_fn(x_reconstructed, x)
-                kl_div = -0.5 * torch.sum(1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2))
-                loss = reconstruction_loss + kl_div
-
-                val_loss += loss.item()
-
-        val_loss /= len(val_data.dataset)
-
-        print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}')
-        # if epoch % 10 == 0:
-        #     visualize_reconstruction(model, val_data, device, n_images=5)
+            
+            if batch_idx % 100 == 0:  # Log loss
+                print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+                
+        # Visualization update at the end of each epoch
+        with torch.no_grad():
+            model.eval()
+            fixed_reconstructed, _, _ = model(fixed_images)
+            
+            for i in range(len(fixed_images)):
+                original = fixed_images[i].cpu()
+                reconstructed = fixed_reconstructed[i].cpu()
+                
+                axes[0, i].imshow(original.permute(1, 2, 0))
+                axes[1, i].imshow(reconstructed.permute(1, 2, 0))
+                axes[0, i].axis('off')
+                axes[1, i].axis('off')
+                
+                if epoch == 0:  # Set titles only in the first epoch
+                    axes[0, i].set_title(f"Original {i+1}")
+                    axes[1, i].set_title(f"Reconstructed {i+1}")
+                    
+            # Save the current figure
+            fig.savefig(os.path.join(plots_dir, f'training_epoch_{epoch+1}.png'))
+            plt.pause(0.1)  
+    
+    plt.ioff() 
+    plt.show()
 
     # Save the model after training
     torch.save(model.state_dict(), path)
